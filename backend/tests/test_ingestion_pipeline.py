@@ -506,3 +506,30 @@ def test_semantic_chunking_strategy_splits_large_sentences_and_preserves_metadat
     assert [doc.metadata["start_index"] for doc in docs] == sorted(
         doc.metadata["start_index"] for doc in docs
     )
+
+
+def test_sanitize_filename_edge_cases():
+    from services.ingestion_pipeline import _sanitize_filename
+    assert _sanitize_filename("../../etc/passwd") == "passwd"
+    assert _sanitize_filename("bad\nname\r\t.pdf") == "badname.pdf"
+    assert _sanitize_filename("") == "upload"
+    long_name = "a" * 300 + ".pdf"
+    assert len(_sanitize_filename(long_name, max_length=255)) == 255
+
+@pytest.mark.asyncio
+async def test_validate_file_rejects_pdf_without_magic_bytes():
+    mock_file = AsyncMock(spec=UploadFile)
+    mock_file.content_type = "application/pdf"
+    pipeline = IngestionPipeline()
+    
+    with pytest.raises(UploadPipelineError) as excinfo:
+        pipeline.validate_file(mock_file, b"definitely not a pdf bytes")
+        
+    assert excinfo.value.code == "invalid_file_content"
+
+@pytest.mark.asyncio
+async def test_validate_file_accepts_valid_cp1254_fallback():
+    mock_file = AsyncMock(spec=UploadFile)
+    mock_file.content_type = "text/plain"
+    pipeline = IngestionPipeline()
+    pipeline.validate_file(mock_file, b"\xff\xfe")

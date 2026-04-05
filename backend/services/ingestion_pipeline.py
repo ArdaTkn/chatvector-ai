@@ -641,10 +641,12 @@ class _FileMetadata:
     filename: str
 
 def _sanitize_filename(name: str, max_length: int = 255) -> str:
-    name = pathlib.Path(name).name  # strip path components
-    name = re.sub(r"[^\w\s\-.]", "", name)  # strip control/special chars
+    name = pathlib.Path(name).name  
+    name = re.sub(r"[^\w \-.]", "", name)
     name = name.strip()[:max_length]
     return name or "upload"
+
+
 class UploadPipelineError(Exception):
     def __init__(
         self,
@@ -736,13 +738,16 @@ class IngestionPipeline:
 
         if file.content_type == "text/plain":
             try:
-                file_bytes.decode("utf-8")
+                try:
+                    file_bytes.decode("utf-8")
+                except UnicodeDecodeError:
+                    file_bytes.decode("cp1254")
             except UnicodeDecodeError:
                 raise UploadPipelineError(
                     status_code=400,
                     code="invalid_file_content",
                     stage=stage,
-                    message="File content is not valid UTF-8 text.",
+                    message="File content is not valid text encoding.",
                 )
 
     async def _update_status(
